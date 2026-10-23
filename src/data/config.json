@@ -1,0 +1,106 @@
+{
+  "_comment": "鼠标的偶像梦模拟器 · 全局数值配置。改这里就能调难度，不用碰代码。",
+
+  "economy": {
+    "startMoney": 250000,
+    "salaryPerIdol": 5200,
+    "operationBase": 26000,
+    "phase2CostMul": 1.35,
+    "raiseMul": 1.2
+  },
+
+  "revenue": {
+    "_comment": "平台先抽平台抽成，剩下的里面公会抽 guildCut，其余给主播。周边与外快不被抽成。",
+    "platformCut": 0.5,
+    "guildCutDefault": 0.3,
+    "guildCutMin": 0.1,
+    "guildCutMax": 0.5,
+    "guildCutStep": 0.01,
+    "guildCut": {
+      "_comment": "成员记住的是长期分成，不是这个月的数字。抽成低于公平线只小幅缓和，高于公平线会明显记仇。",
+      "fair": 0.3,
+      "aboveSensitivity": 60,
+      "belowSensitivity": 20,
+      "aboveCapSensitivity": 420,
+      "belowCapSensitivity": 0,
+      "growthPenalty": 1.8,
+      "reputationPenalty": 40,
+      "adaptSpeed": 0.4,
+      "changeThreshold": 0.05,
+      "changePenalty": 2.5
+    },
+    "grossPerFan": 6.8,
+    "merchPerFan": 0.24,
+    "merchCap": 60000,
+    "repBase": 0.6,
+    "repDiv": 125
+  },
+
+  "fanGrowth": {
+    "fansScale": 40000
+  },
+
+  "actionPoints": {
+    "perMonth": 5,
+    "sickPenalty": 4
+  },
+
+  "fatigue": {
+    "max": 100,
+    "sickAt": 100,
+    "monthlyRecover": 2
+  },
+
+  "morale": {
+    "_comment": "按月结算：疲劳落在哪个区间就加减多少心态；再叠加增长、阶段、螺旋、抽成的影响。",
+    "bands": [
+      { "below": 25, "delta": 3 },
+      { "below": 45, "delta": 1.5 },
+      { "below": 65, "delta": -1 },
+      { "below": 85, "delta": -4 },
+      { "below": 999, "delta": -8 }
+    ],
+    "growthBonus": { "threshold": 0.08, "value": 2 },
+    "stagnation": { "threshold": 0.02, "value": -1 },
+    "phase2Penalty": -0.5,
+    "spiral": { "below": 22, "value": -2 },
+    "diminishingDivisor": 110,
+    "reputationDecay": 0.6
+  },
+
+  "graduation": {
+    "riskMonths": 2,
+    "resetAbove": 20,
+    "warnBelow": 25
+  },
+
+  "live": {
+    "_comment": "线上演唱会的最终结算。venueCost 是虚拟舞台 / 推流 / 导播的制作费，attendance 是直播间峰值在线人数。",
+    "venueCost": 600000,
+    "attendance": { "base": 1200, "perFan": 0.06, "max": 60000, "venueMul": 2 },
+    "weights": {
+      "fans": { "max": 30, "base": 5000, "span": 600 },
+      "stats": { "max": 22, "low": 40, "range": 50 },
+      "morale": { "max": 12, "low": 40, "range": 50 },
+      "reputation": { "max": 12 },
+      "threeD": { "max": 12 },
+      "venue": { "max": 12 },
+      "fatiguePenalty": { "max": 10, "from": 55, "range": 45 }
+    },
+    "tiers": [
+      { "min": 88, "key": "legend", "label": "让山自己动起来" },
+      { "min": 78, "key": "perfect", "label": "灯牌铺满" },
+      { "min": 62, "key": "great", "label": "满月" },
+      { "min": 46, "key": "ok", "label": "半场灯" },
+      { "min": 0, "key": "poor", "label": "只亮了一排" }
+    ]
+  },
+
+  "events": {
+    "chancePerMonth": 0.82
+  },
+
+  "debug": {
+    "phaseMonths": 12
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "mouse-idol-dream",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "鼠标的偶像梦模拟器 —— 文字演出类虚拟偶像养成推演游戏",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc -b",
+    "sim": "tsx scripts/sim.ts"
+  },
+  "dependencies": {
+    "pinia": "^3.0.3",
+    "pixi.js": "^8.22.0",
+    "vue": "^3.5.22"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.11",
+    "vue-tsc": "^3.1.1"
+  }
+}
