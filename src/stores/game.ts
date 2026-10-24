@@ -17,9 +17,9 @@ import {
   BALANCE,
   CONFIG,
   fmtMoney,
-  guildCutGrowthMul,
   guildCutMoraleCeiling,
   guildCutMoraleDelta,
+  fixedCostParts,
   monthlyFixedCost,
   revenueSplit,
 } from '../engine/balance'
@@ -27,13 +27,14 @@ import { Rng, uid } from '../engine/rng'
 import {
   applyActionResult,
   effectiveStat,
+  estimateFanGain,
   expectedFanGain,
   groupQuality,
   monthEnd,
   monthOpening,
+  monthTrendView,
   nameOf,
   resolveAction,
-  synergy,
 } from '../engine/resolve'
 import { beBankrupt, beGraduation, evaluateLive, heEnding } from '../data/endings'
 import type { LiveGrade } from '../data/endings'
@@ -97,6 +98,7 @@ function createState(seed: number): GameState {
     ending: null,
     marketing: 1,
     buffs: { fanMul: 1, repBoost: 0, fatigueCut: 1 },
+    nextFanMul: 1,
     achievements: [],
     flags: {},
     counters: {},
@@ -129,8 +131,10 @@ export const useGameStore = defineStore('game', () => {
   const avgFatigue = computed(() => gs.idols.reduce((s, i) => s + i.fatigue, 0) / gs.idols.length)
   const fixedCost = computed(() => {
     const raised = gs.flags['raised'] ? 1.2 : 1
-    return Math.round(monthlyFixedCost(gs.phase) * raised)
+    return Math.round(monthlyFixedCost(gs.phase, totalFans.value) * raised)
   })
+  /** 固定支出里的规模成本（超出免费额度的粉丝带来的棚 / 带宽 / 税） */
+  const scaleCost = computed(() => fixedCostParts(gs.phase, totalFans.value).scale)
   const usedAp = computed(() => gs.pending.reduce((s, p) => s + (ACTION_BY_ID.get(p.actionId)?.ap ?? 0), 0))
   const remainAp = computed(() => gs.resources.apMax - usedAp.value)
   const pendingCost = computed(() => gs.pending.reduce((s, p) => s + (ACTION_BY_ID.get(p.actionId)?.money ?? 0), 0))
@@ -208,7 +212,7 @@ export const useGameStore = defineStore('game', () => {
         { kind: 'quote', text: '“没关系。我们也不太懂。”', who: '运营' },
         {
           kind: 'system',
-          text: `每月固定支出 ¥${fmtMoney(monthlyFixedCost(1))}（8 人底薪 + 运营）。不增长，就会破产。`,
+          text: `每月固定支出 ¥${fmtMoney(monthlyFixedCost(1, totalFans.value))}（8 人底薪 + 运营）。粉丝涨了还会涨规模成本。不增长，就会破产。`,
         },
       )
     }
@@ -218,6 +222,9 @@ export const useGameStore = defineStore('game', () => {
   /* ---------------------------------------------------------------- */
   /* 编成（选行动）                                                     */
   /* ---------------------------------------------------------------- */
+
+  /** 本月平台风向：一个方向被推、一个被压（由 seed + 月份派生，读档不变） */
+  const trend = computed(() => monthTrendView(gs as GameState))
 
   function lockReason(def: ActionDef): string | null {
     if (usedAp.value + def.ap > gs.resources.apMax) return `行动点不足（需 ${def.ap} AP）`
@@ -269,33 +276,48 @@ export const useGameStore = defineStore('game', () => {
     recalcMarketing()
   }
 
-  function previewOf(p: PendingAction): { fans: number; money: number; ap: number } {
+  /**
+   * 一次行动在计划里的预估。
+   * fans 是「运气正常」的期望值，fansLow / fansHigh 是爆款与翻车的两端，
+   * 面板上按区间显示，避免每月数字看起来像写死的。
+   */
+  function previewOf(p: PendingAction): {
+    fans: number
+    fansLow: number
+    fansHigh: number
+    money: number
+    ap: number
+  } {
     const def = ACTION_BY_ID.get(p.actionId)!
     const targets = p.targets
       .map((id) => gs.idols.find((i) => i.id === id))
       .filter((x): x is IdolState => !!x)
 
-    if (p.actionId === 'clip') return { fans: Math.round(totalFans.value * 0.014), money: -def.money, ap: def.ap }
-    if (p.actionId === 'review') return { fans: Math.round(totalFans.value * 0.004), money: -def.money, ap: def.ap }
+    if (p.actionId === 'clip') {
+      const fans = Math.round(totalFans.value * 0.014)
+      return { fans, fansLow: Math.round(fans * 0.8), fansHigh: Math.round(fans * 1.25), money: -def.money, ap: def.ap }
+    }
+    if (p.actionId === 'review') {
+      const fans = Math.round(totalFans.value * 0.004)
+      return { fans, fansLow: fans, fansHigh: fans, money: -def.money, ap: def.ap }
+    }
     if (p.actionId === 'sponsor') {
       const used = gs.pending.filter((x) => x.actionId === 'sponsor').indexOf(p)
       const fade = Math.max(0.25, 1 - used * 0.35)
       const q = targets.length ? groupQuality(targets, 'charm') : 0.8
-      return { fans: Math.round(-totalFans.value * 0.004 * used), money: Math.round(totalFans.value * 0.3 * fade * (0.85 + q * 0.25)), ap: def.ap }
+      const income = Math.round(totalFans.value * 0.3 * fade * (0.85 + q * 0.25))
+      return {
+        fans: Math.round(-totalFans.value * 0.004 * used),
+        fansLow: 0,
+        fansHigh: 0,
+        money: income,
+        ap: def.ap,
+      }
     }
-    if (def.base <= 0) return { fans: 0, money: -def.money, ap: def.ap }
-    const q = groupQuality(targets, def.stat)
-    const syn = synergy(targets).mul
-    const fans = Math.round(
-      def.base *
-        Math.pow(Math.max(q, 0.08), 0.95) *
-        Math.sqrt(1 + totalFans.value / BALANCE.fanScale) *
-        syn *
-        gs.marketing *
-        gs.buffs.fanMul *
-        guildCutGrowthMul(gs.resources.guildCutPerceived),
-    )
-    return { fans, money: -def.money, ap: def.ap }
+    if (def.base <= 0) return { fans: 0, fansLow: 0, fansHigh: 0, money: -def.money, ap: def.ap }
+
+    const est = estimateFanGain(def, gs as GameState, targets)
+    return { fans: est.mid, fansLow: est.low, fansHigh: est.high, money: -def.money, ap: def.ap }
   }
 
   /* ---------------------------------------------------------------- */
@@ -331,7 +353,11 @@ export const useGameStore = defineStore('game', () => {
     // 行动点恢复前的缓冲
     await sleep(120)
 
-    const end = monthEnd(gs, rng.value, { fixedCost: fixedCost.value, phase: gs.phase })
+    const end = monthEnd(gs, rng.value, {
+      fixedCost: fixedCost.value,
+      phase: gs.phase,
+      scaleCost: scaleCost.value,
+    })
     await pushLogs(end.logs, 75)
 
     monthSummary.value = { income: end.income, cost: end.cost, net: end.income - end.cost }
@@ -383,7 +409,8 @@ export const useGameStore = defineStore('game', () => {
 
     // 月度重置
     gs.marketing = 1
-    gs.buffs = { fanMul: 1, repBoost: 0, fatigueCut: 1 }
+    gs.buffs = { fanMul: gs.nextFanMul ?? 1, repBoost: 0, fatigueCut: 1 }
+    gs.nextFanMul = 1
     gs.counters = {}
     gs.resources.ap = gs.resources.apMax
 
@@ -633,6 +660,7 @@ export const useGameStore = defineStore('game', () => {
       if (typeof r.guildCutPerceived !== 'number') r.guildCutPerceived = r.guildCut
       if (typeof r.guildCutPrev !== 'number') r.guildCutPrev = r.guildCut
       if (!gs.counters) gs.counters = {}
+      if (typeof gs.nextFanMul !== 'number') gs.nextFanMul = 1
       logs.value = data.logs ?? []
       screen.value = 'game'
       phase.value = 'idle'
@@ -722,10 +750,12 @@ export const useGameStore = defineStore('game', () => {
     totalFans,
     revenuePreview,
     cutMoraleHint,
+    trend,
     setGuildCut,
     avgMorale,
     avgFatigue,
     fixedCost,
+    scaleCost,
     usedAp,
     remainAp,
     pendingCost,

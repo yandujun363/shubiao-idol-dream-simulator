@@ -106,10 +106,10 @@ export const EVENTS: GameEvent[] = [
     choices: (c) => [
       {
         label: '花钱扩容',
-        hint: `¥${Math.round(c.fans * 0.22).toLocaleString()}`,
-        cost: Math.round(c.fans * 0.22),
+        hint: `¥${Math.round(c.fans * 0.09).toLocaleString()}`,
+        cost: Math.round(c.fans * 0.09),
         apply: (c) => {
-          const cost = Math.round(c.fans * 0.22)
+          const cost = Math.round(c.fans * 0.09)
           return outcome({
             money: money(-cost),
             fans: Math.round(c.fans * 0.04),
@@ -175,12 +175,12 @@ export const EVENTS: GameEvent[] = [
       {
         label: '官方转发，请他吃顿盒饭',
         hint: '小钱，大口碑',
-        cost: 3_000,
+        cost: 1_500,
         apply: (c) => {
           const who = c.pick([c.idols[Number(c.state.month) % c.idols.length]])[0]
           const gain = Math.round(c.fans * 0.035)
           return outcome({
-            money: money(-3_000),
+            money: money(-1_500),
             fans: gain,
             reputation: 5,
             morale: { ids: [who.id], delta: 6 },
@@ -208,11 +208,11 @@ export const EVENTS: GameEvent[] = [
       {
         label: '买下来做正式素材',
         hint: '花钱买断，涨粉更多',
-        cost: 20_000,
+        cost: 8_000,
         apply: (c) => {
           const gain = Math.round(c.fans * 0.055)
           return outcome({
-            money: money(-20_000),
+            money: money(-8_000),
             fans: gain,
             reputation: 3,
             logs: [
@@ -323,10 +323,10 @@ export const EVENTS: GameEvent[] = [
       {
         label: '全员涨薪 20%',
         hint: '固定支出永久上升，心态大涨',
-        cost: 24_000,
+        cost: 10_000,
         apply: (c) =>
           outcome({
-            money: money(-24_000),
+            money: money(-10_000),
             morale: { all: true, delta: 14 },
             flags: { raised: true },
             logs: [
@@ -339,11 +339,11 @@ export const EVENTS: GameEvent[] = [
       {
         label: '只给她一个人涨',
         hint: '她会留下，别人会看着',
-        cost: 8_000,
+        cost: 4_000,
         apply: (c) => {
           const who = c.pick(c.idols)[0]
           return outcome({
-            money: money(-8_000),
+            money: money(-4_000),
             morale: { ids: [who.id], delta: 18 },
             flags: { raiseSingle: true },
             logs: [
@@ -389,13 +389,13 @@ export const EVENTS: GameEvent[] = [
     },
     choices: () => [
       {
-        label: '换新的（¥18,000）',
+        label: '换新的（¥6,000）',
         hint: '一劳永逸',
-        cost: 18_000,
+        cost: 6_000,
         apply: (c) => {
           const who = tiredest(c)
           return outcome({
-            money: money(-18_000),
+            money: money(-6_000),
             morale: { ids: [who.id], delta: 8 },
             reputation: 2,
             flags: { newSoundCard: true },
@@ -408,13 +408,13 @@ export const EVENTS: GameEvent[] = [
         },
       },
       {
-        label: '修（¥4,000），凑合用',
+        label: '修（¥1,500），凑合用',
         hint: '能撑住',
-        cost: 4_000,
+        cost: 1_500,
         apply: (c) => {
           const who = tiredest(c)
           return outcome({
-            money: money(-4_000),
+            money: money(-1_500),
             morale: { ids: [who.id], delta: -3 },
             logs: [
               line('narration', '修好的声卡有底噪。录出来的每一条素材都得降噪，切片师骂了一晚上。'),
@@ -510,15 +510,15 @@ export const EVENTS: GameEvent[] = [
       return [
         {
           label: '加钱留人',
-          hint: '¥60,000',
-          cost: 60_000,
+          hint: '¥25,000',
+          cost: 10_000,
           apply: () =>
             outcome({
-              money: money(-60_000),
+              money: money(-10_000),
               morale: { ids: [star.id], delta: 20 },
               logs: [
                 line('narration', '她留下了。合同签完，她说了句谢谢，然后回房间继续练。'),
-                line('narration', '鼠标在办公室坐了很久。他算了一下：这六万，本来可以做半首原创。'),
+                line('narration', '鼠标在办公室坐了很久。他算了一下：这两万五，本来可以做一整首原创。'),
                 line('good', '她留下来了。'),
               ],
             }),
@@ -532,7 +532,7 @@ export const EVENTS: GameEvent[] = [
               morale: { ids: [star.id], delta: -40 },
               graduate: [star.id],
               logs: [
-                line('narration', '转会费到账了。八十万，比企划半年的营收还多。'),
+                line('narration', '转会费到账了。八万，比企划小半年的营收还多。'),
                 line('narration', '她走的那天，把自己画的那些表情包留在了共享盘里。'),
                 line('bad', '她走了。企划少了一个人。'),
                 line('quote', '“你们会成功的。只是我可能等不到那天了。”', IDOL_BY_ID.get(star!.id)!.name),
@@ -577,7 +577,7 @@ export const EVENTS: GameEvent[] = [
     when: (c) => c.state.month >= 5,
     body: () => [
       line('narration', '一张展位邀请函寄到了公司。三天的漫展，一个三米乘三米的角落。'),
-      line('narration', '展位费、物料、差旅，加起来大概四万。'),
+      line('narration', '展位费、物料、差旅，加起来大概一万五。'),
       line('quote', '“去吗？”', '运营'),
       line('quote', '“能见到真人粉丝吗？”', '鼠标'),
       line('quote', '“能。”', '运营'),
@@ -586,10 +586,10 @@ export const EVENTS: GameEvent[] = [
     choices: () => [
       {
         label: '去，做一次正式的展位',
-        cost: 40_000,
+        cost: 15_000,
         apply: (c) =>
           outcome({
-            money: money(-40_000),
+            money: money(-15_000),
             fans: Math.round(c.fans * 0.055),
             reputation: 6,
             morale: { all: true, delta: 8 },
@@ -699,10 +699,10 @@ export const EVENTS: GameEvent[] = [
         {
           label: '明天给她放一天假，你亲自陪她聊聊',
           hint: '心态大幅回升',
-          cost: 2_000,
+          cost: 800,
           apply: () =>
             outcome({
-              money: money(-2_000),
+              money: money(-800),
               morale: { ids: [w.id], delta: 24 },
               logs: [
                 line('narration', '你请她吃了一顿不算贵的饭。整个过程你几乎没说话，只是听。'),
@@ -759,10 +759,10 @@ export const EVENTS: GameEvent[] = [
     choices: (c) => [
       {
         label: '调整结构，把重心转向会员和周边',
-        cost: 25_000,
+        cost: 10_000,
         apply: () =>
           outcome({
-            money: money(-25_000),
+            money: money(-10_000),
             reputation: 4,
             fans: Math.round(c.fans * 0.01),
             flags: { shiftedToMerch: true },
@@ -907,14 +907,14 @@ export const EVENTS: GameEvent[] = [
         label: '接，做产品直播',
         apply: () =>
           outcome({
-            money: money(120_000),
+            money: money(80_000),
             reputation: -8,
             morale: { all: true, delta: -4 },
             logs: [
               line('narration', '产品直播做了两个小时。弹幕里有人问：「你们是不是被收购了？」'),
               line('narration', '运营说没有。'),
               line('narration', '六位数的转账到账那天，鼠标在办公室里一个人坐了一会儿。'),
-              line('good', '资金 +¥120,000。'),
+              line('good', '资金 +¥80,000。'),
               line('bad', '口碑 -8。全企划心情 -4。'),
             ],
           }),
@@ -923,13 +923,13 @@ export const EVENTS: GameEvent[] = [
         label: '只接冠名，不做产品直播',
         apply: () =>
           outcome({
-            money: money(50_000),
+            money: money(35_000),
             reputation: 1,
             logs: [
               line('narration', '冠名的 logo 印在了所有物料的角落。很小，不显眼。'),
               line('narration', '老同学说：「你还是老样子。」'),
               line('quote', '“我只是不想再解释一次我在做什么。”', '鼠标'),
-              line('good', '资金 +¥50,000。'),
+              line('good', '资金 +¥35,000。'),
             ],
           }),
       },
@@ -984,11 +984,11 @@ export const EVENTS: GameEvent[] = [
         },
         {
           label: '给她一个「可以做自己」的新方向',
-          hint: '花钱（¥30,000），彻底转向',
-          cost: 30_000,
+          hint: '花钱（¥10,000），彻底转向',
+          cost: 10_000,
           apply: () =>
             outcome({
-              money: money(-30_000),
+              money: money(-10_000),
               morale: { ids: [dying.id], delta: 34 },
               stat: { ids: [dying.id], key: 'charm', delta: 4 },
               flags: { savedWithDirection: true },

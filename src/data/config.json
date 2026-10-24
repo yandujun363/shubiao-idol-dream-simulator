@@ -3,10 +3,15 @@
 
   "economy": {
     "startMoney": 250000,
-    "salaryPerIdol": 5200,
-    "operationBase": 26000,
-    "phase2CostMul": 1.35,
-    "raiseMul": 1.2
+    "salaryPerIdol": 4200,
+    "operationBase": 16000,
+    "phase2CostMul": 1.18,
+    "raiseMul": 1.2,
+    "scaleCost": {
+      "_comment": "规模成本：粉丝超过 freeFans 之后，每多一个粉丝每月多花 perFan。摊子大了，人、棚、带宽、法务都要钱。",
+      "freeFans": 40000,
+      "perFan": 0.55
+    }
   },
 
   "revenue": {
@@ -21,16 +26,21 @@
       "fair": 0.3,
       "aboveSensitivity": 60,
       "belowSensitivity": 20,
-      "aboveCapSensitivity": 420,
+      "aboveCapSensitivity": 400,
       "belowCapSensitivity": 0,
-      "growthPenalty": 1.8,
-      "reputationPenalty": 40,
+      "growthPenalty": 1.4,
+      "reputationPenalty": 28,
       "adaptSpeed": 0.4,
       "changeThreshold": 0.05,
-      "changePenalty": 2.5
+      "changePenalty": 2
     },
-    "grossPerFan": 6.8,
-    "merchPerFan": 0.24,
+    "grossPerFan": 8.2,
+    "dilution": {
+      "_comment": "路人粉不付费：粉丝越多，单个粉丝的月均打赏越低。floor 是稀释的下限，halfFans 是稀释到一半时的大致体量。",
+      "halfFans": 150000,
+      "floor": 0.35
+    },
+    "merchPerFan": 0.26,
     "merchCap": 60000,
     "repBase": 0.6,
     "repDiv": 125
@@ -38,6 +48,26 @@
 
   "fanGrowth": {
     "fansScale": 40000
+  },
+
+  "luck": {
+    "_comment": "行动发挥的随机分布：主体是对数正态（sigma 越大越飘），外面再套一层小概率的爆款与翻车。分档阈值决定叙事走哪一档。",
+    "bodySigma": 0.28,
+    "flopChance": 0.08,
+    "flop": [0.32, 0.62],
+    "surgeChance": 0.06,
+    "surge": [1.65, 2.6],
+    "bodyClamp": [0.45, 2.2],
+    "tiers": { "crit": 1.55, "good": 1.12, "ok": 0.74 }
+  },
+
+  "trend": {
+    "_comment": "每月平台风向：一个内容方向被推，一个被压。由 seed + 月份直接派生，不写存档，所以读档也不会变。",
+    "hotMul": 1.35,
+    "coldMul": 0.78,
+    "pool": ["chat", "cover", "dance", "variety", "group"],
+    "hotLabel": "这阵子平台在推",
+    "coldLabel": "算法这阵子不给量"
   },
 
   "actionPoints": {
@@ -48,35 +78,35 @@
   "fatigue": {
     "max": 100,
     "sickAt": 100,
-    "monthlyRecover": 2
+    "monthlyRecover": 5
   },
 
   "morale": {
     "_comment": "按月结算：疲劳落在哪个区间就加减多少心态；再叠加增长、阶段、螺旋、抽成的影响。",
     "bands": [
-      { "below": 25, "delta": 3 },
-      { "below": 45, "delta": 1.5 },
-      { "below": 65, "delta": -1 },
-      { "below": 85, "delta": -4 },
+      { "below": 30, "delta": 3 },
+      { "below": 50, "delta": 1.5 },
+      { "below": 70, "delta": -1 },
+      { "below": 88, "delta": -4 },
       { "below": 999, "delta": -8 }
     ],
     "growthBonus": { "threshold": 0.08, "value": 2 },
     "stagnation": { "threshold": 0.02, "value": -1 },
-    "phase2Penalty": -0.5,
-    "spiral": { "below": 22, "value": -2 },
+    "phase2Penalty": -0.3,
+    "spiral": { "below": 18, "value": -1.5 },
     "diminishingDivisor": 110,
     "reputationDecay": 0.6
   },
 
   "graduation": {
-    "riskMonths": 2,
-    "resetAbove": 20,
-    "warnBelow": 25
+    "riskMonths": 3,
+    "resetAbove": 25,
+    "warnBelow": 28
   },
 
   "live": {
     "_comment": "线上演唱会的最终结算。venueCost 是虚拟舞台 / 推流 / 导播的制作费，attendance 是直播间峰值在线人数。",
-    "venueCost": 600000,
+    "venueCost": 250000,
     "attendance": { "base": 1200, "perFan": 0.06, "max": 60000, "venueMul": 2 },
     "weights": {
       "fans": { "max": 30, "base": 5000, "span": 600 },

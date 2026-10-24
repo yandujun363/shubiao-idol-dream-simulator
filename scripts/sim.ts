@@ -6,8 +6,9 @@ import { ACTIONS, ACTION_BY_ID, type ActionDef } from '../src/data/actions'
 import { EVENTS } from '../src/data/events'
 import { createInitialIdolState, IDOL_BY_ID } from '../src/data/idols'
 import { evaluateLive } from '../src/data/endings'
-import { BALANCE, CONFIG, monthlyFixedCost } from '../src/engine/balance'
+import { BALANCE, CONFIG, fixedCostParts } from '../src/engine/balance'
 import { Rng } from '../src/engine/rng'
+import { monthTrend } from '../src/engine/trend'
 import { applyActionResult, monthEnd, resolveAction, effectiveStat } from '../src/engine/resolve'
 import type { EventContext, GameEvent, GameState } from '../src/engine/types'
 
@@ -36,6 +37,7 @@ function createState(seed: number): GameState {
     ending: null,
     marketing: 1,
     buffs: { fanMul: 1, repBoost: 0, fatigueCut: 1 },
+    nextFanMul: 1,
     achievements: [],
     flags: {},
     counters: {},
@@ -45,8 +47,14 @@ function createState(seed: number): GameState {
 
 const total = (s: GameState) => s.idols.reduce((a, i) => a + i.fans, 0)
 
+function fixedParts(s: GameState) {
+  const p = fixedCostParts(s.phase, total(s))
+  const mul = s.flags['raised'] ? 1.2 : 1
+  return { total: Math.round(p.total * mul), scale: Math.round(p.scale * mul) }
+}
+
 function fixed(s: GameState) {
-  return Math.round(monthlyFixedCost(s.phase) * (s.flags['raised'] ? 1.2 : 1))
+  return fixedParts(s).total
 }
 
 function makeCtx(s: GameState, rng: Rng): EventContext {
@@ -187,7 +195,10 @@ function choosePlan(s: GameState, rng: Rng): { def: ActionDef; targets: string[]
       { id: 'variety', targets: byStat('charm').slice(0, 2).map((i) => i.id) },
       { id: 'offline', targets: s.idols.slice(0, 4).map((i) => i.id) },
     ]
-    const pick = rng.pick(options)
+    // 玩家能提前看到「本月风向」，所以先挑被推的那个
+    const hot = monthTrend(s.seed, s.month).hot
+    const hotPick = options.find((o) => o.id === hot)
+    const pick = hotPick && rng.chance(0.6) ? hotPick : rng.pick(options)
     if (!push(pick.id, pick.targets)) {
       if (!push('chat', byStat('talk').slice(0, 1).map((i) => i.id))) break
     }
@@ -229,7 +240,7 @@ function runGame(seed: number): PolicyResult {
       applyActionResult(s, res)
     }
 
-    const end = monthEnd(s, rng, { fixedCost: fixed(s), phase: s.phase })
+    const end = monthEnd(s, rng, { fixedCost: fixed(s), phase: s.phase, scaleCost: fixedParts(s).scale })
     s.resources.apMax = end.sick.length ? 4 : 5
 
     if (end.graduations.length) {
@@ -257,7 +268,7 @@ function runGame(seed: number): PolicyResult {
     })
 
     // 事件：随机挑一个可用的，选第一个选项（乐观）
-    if (rng.chance(0.82)) {
+    if (rng.chance(CONFIG.events.chancePerMonth)) {
       const ctx = makeCtx(s, rng)
       const pool = EVENTS.filter((e) => e.id !== 'graduation_talk' && e.when(ctx))
       if (pool.length) {
@@ -304,7 +315,8 @@ function runGame(seed: number): PolicyResult {
     s.month += 1
     s.monthInPhase = s.monthInPhase === 12 ? 1 : s.monthInPhase + 1
     s.marketing = 1
-    s.buffs = { fanMul: 1, repBoost: 0, fatigueCut: 1 }
+    s.buffs = { fanMul: s.nextFanMul, repBoost: 0, fatigueCut: 1 }
+    s.nextFanMul = 1
     s.counters = {}
     s.resources.ap = s.resources.apMax
     if (finishedPhase && wasPhase === 1) s.phase = 2
@@ -337,7 +349,7 @@ if (alive.length) {
 const gradeDist: Record<string, number> = {}
 const scoreList: number[] = []
 for (const r of alive) {
-  if (r.state.resources.money >= 600_000) r.state.flags['grandVenue'] = true
+  if (r.state.resources.money >= CONFIG.live.venueCost) r.state.flags['grandVenue'] = true
   const g = evaluateLive(r.state)
   gradeDist[g.tierLabel] = (gradeDist[g.tierLabel] ?? 0) + 1
   scoreList.push(g.score)
@@ -352,6 +364,58 @@ const busted = results.filter((r) => r.outcome !== 'alive24')
 if (busted.length) {
   console.log(`失败平均月份 : ${avg(busted.map((r) => r.month)).toFixed(1)}`)
 }
+
+/* ------------------------------------------------------------------ */
+/* 随机性体检                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 同一个行动、同一个人在同样的状态下重复掷 3000 次。
+ * 如果分位数挤成一条线、或者爆款/翻车率对不上配置，说明随机模型又「写死」了。
+ */
+function luckReport() {
+  const probe = createState(20260101)
+  probe.idols.forEach((i) => {
+    i.fans = 30000 / probe.idols.length
+    i.morale = 70
+    i.fatigue = 15
+  })
+  const rng = new Rng(987654321)
+
+  console.log('\n--- 随机性体检（同一行动 × 3000 次） ---')
+  console.log('   行动       P5     P25    中位    P75     P95     爆款   翻车')
+  for (const id of ['chat', 'cover', 'dance', 'variety', 'group', 'original']) {
+    const def = ACTION_BY_ID.get(id)!
+    const pool = [...probe.idols].sort((a, b) => b.stats[def.stat] - a.stats[def.stat])
+    const targets = pool.slice(0, Math.max(1, Math.min(def.targets.max, 2))).map((i) => i.id)
+    const vals: number[] = []
+    let surge = 0
+    let flop = 0
+    for (let i = 0; i < 3000; i++) {
+      probe.marketing = 1
+      probe.buffs = { fanMul: 1, repBoost: 0, fatigueCut: 1 }
+      probe.resources.guildCutPerceived = CONFIG.revenue.guildCutDefault
+      const before = probe.idols.map((x) => ({ fans: x.fans, fatigue: x.fatigue, morale: x.morale }))
+      const res = resolveAction(def, targets, probe, rng)
+      vals.push(res.fanDelta)
+      if (res.luck?.extreme === 'surge') surge++
+      if (res.luck?.extreme === 'flop') flop++
+      // 体检不推进状态，掷完就回滚
+      probe.idols.forEach((x, idx) => {
+        x.fans = before[idx].fans
+        x.fatigue = before[idx].fatigue
+        x.morale = before[idx].morale
+      })
+    }
+    vals.sort((a, b) => a - b)
+    const q = (p: number) => Math.round(vals[Math.min(vals.length - 1, Math.floor(p * vals.length))])
+    console.log(
+      `   ${def.name.padEnd(6)} ${String(q(0.05)).padStart(6)} ${String(q(0.25)).padStart(7)} ${String(q(0.5)).padStart(7)} ${String(q(0.75)).padStart(7)} ${String(q(0.95)).padStart(7)} ${(surge / 30).toFixed(1).padStart(5)}% ${(flop / 30).toFixed(1).padStart(5)}%`,
+    )
+  }
+}
+
+luckReport()
 
 // 样例曲线
 function trace(seed: number) {
@@ -369,7 +433,7 @@ function trace(seed: number) {
       s.counters[p.def.id] = (s.counters[p.def.id] ?? 0) + 1
       applyActionResult(s, res)
     }
-    const end = monthEnd(s, rng, { fixedCost: fixed(s), phase: s.phase })
+    const end = monthEnd(s, rng, { fixedCost: fixed(s), phase: s.phase, scaleCost: fixedParts(s).scale })
     s.resources.apMax = end.sick.length ? 4 : 5
     rows.push(
       `M${String(s.month).padStart(2)} [${plan.map((p) => p.def.id + ':' + p.targets.length).join(',')}] ${s.phase === 1 ? 'P1' : 'P2'} 粉 ${String(total(s)).padStart(7)}  钱 ${String(s.resources.money).padStart(8)}  口碑 ${s.resources.reputation.toFixed(0).padStart(3)}  均心 ${Math.round(s.idols.reduce((a, i) => a + i.morale, 0) / 8).toString().padStart(3)}  均疲 ${Math.round(s.idols.reduce((a, i) => a + i.fatigue, 0) / 8).toString().padStart(3)}  抽${(s.resources.guildCut * 100).toFixed(0)}%  3D ${s.idols.filter((i) => i.threeD).length} 晶(心${s.idols.find((i) => i.id === 'akira')!.morale.toFixed(0)},疲${s.idols.find((i) => i.id === 'akira')!.fatigue.toFixed(0)})  ${end.bankrupt ? '破产' : ''}${end.graduations.length ? '毕业' : ''}`,
@@ -380,7 +444,8 @@ function trace(seed: number) {
     s.month += 1
     s.monthInPhase = s.monthInPhase === 12 ? 1 : s.monthInPhase + 1
     s.marketing = 1
-    s.buffs = { fanMul: 1, repBoost: 0, fatigueCut: 1 }
+    s.buffs = { fanMul: s.nextFanMul, repBoost: 0, fatigueCut: 1 }
+    s.nextFanMul = 1
     s.counters = {}
     s.resources.ap = s.resources.apMax
     if (finishedPhase && wasPhase2 === 1) s.phase = 2

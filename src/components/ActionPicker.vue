@@ -92,6 +92,16 @@ const previewReady = computed(() => {
   return selected.value.targets.max === 0 || targets.value.length >= selected.value.targets.min
 })
 
+/** 本月风向：这个行动吃到了推还是被压 */
+function trendOf(id: string): { hot: boolean; mul: number; text: string } | null {
+  const t = game.trend
+  if (t.hot.id === id) return { hot: true, mul: t.hot.mul, text: t.hotLabel }
+  if (t.cold.id === id) return { hot: false, mul: t.cold.mul, text: t.coldLabel }
+  return null
+}
+
+const pctOf = (mul: number) => `${mul >= 1 ? '+' : ''}${Math.round((mul - 1) * 100)}%`
+
 function confirm() {
   if (!selected.value) return
   if (!valid.value) {
@@ -135,6 +145,12 @@ const STAT_OPTIONS = [
 
         <!-- 第一步：选行动 -->
         <template v-if="!selected">
+          <div class="trend-bar mono">
+            <span class="tb-k">本月风向</span>
+            <span class="tb-hot">↑ {{ game.trend.hot.name }} {{ pctOf(game.trend.hot.mul) }}</span>
+            <span class="tb-cold">↓ {{ game.trend.cold.name }} {{ pctOf(game.trend.cold.mul) }}</span>
+          </div>
+
           <div class="tags">
             <button
               v-for="t in TAGS"
@@ -166,6 +182,13 @@ const STAT_OPTIONS = [
                 <span v-else>企划级</span>
                 <span class="a-tag">{{ TAG_LABEL[a.tag] }}</span>
               </div>
+              <span
+                v-if="trendOf(a.id)"
+                class="a-trend mono"
+                :class="trendOf(a.id)!.hot ? 'hot' : 'cold'"
+              >
+                {{ trendOf(a.id)!.hot ? '↑ 风向' : '↓ 限流' }} {{ pctOf(trendOf(a.id)!.mul) }}
+              </span>
               <div v-if="lockOf(a)" class="a-lock">{{ lockOf(a) }}</div>
             </button>
           </div>
@@ -241,6 +264,18 @@ const STAT_OPTIONS = [
                   </b>
                   <b v-else class="mono faint">选人后估算</b>
                 </div>
+                <div v-if="previewReady && preview.fansHigh > preview.fans" class="est-row est-range">
+                  <span>发挥区间</span>
+                  <b class="mono faint">
+                    {{ fmtNum(preview.fansLow) }} ~ {{ fmtNum(preview.fansHigh) }}
+                  </b>
+                </div>
+                <div v-if="trendOf(selected.id)" class="est-row">
+                  <span>{{ trendOf(selected.id)!.text }}</span>
+                  <b class="mono" :class="trendOf(selected.id)!.hot ? 'up' : 'down'">
+                    {{ pctOf(trendOf(selected.id)!.mul) }}
+                  </b>
+                </div>
                 <div class="est-row">
                   <span>资金</span>
                   <b class="mono" :class="preview.money > 0 ? 'up' : preview.money < 0 ? 'down' : ''">
@@ -257,7 +292,9 @@ const STAT_OPTIONS = [
                     {{ selected.fatigue > 0 ? `+${selected.fatigue}` : selected.fatigue }}
                   </b>
                 </div>
-                <p class="est-note">预估值为基准发挥，实际受心态、疲劳与运气影响。</p>
+                <p class="est-note">
+                  预估是「运气正常」时的期望值。实际会在区间里落，偶尔爆款、偶尔翻车。
+                </p>
               </div>
 
               <button class="btn btn-primary go" :disabled="!valid" @click="confirm">
@@ -325,6 +362,53 @@ const STAT_OPTIONS = [
   gap: 6px;
   padding: 14px 0 12px;
   flex-wrap: wrap;
+}
+
+.trend-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--wash-1);
+  border-left: 2px solid var(--line-hi);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+.tb-k {
+  color: var(--dimmer);
+  letter-spacing: 0.16em;
+}
+
+.tb-hot {
+  color: var(--green);
+}
+.tb-cold {
+  color: var(--red-soft);
+}
+
+.a-trend {
+  position: absolute;
+  top: 10px;
+  right: 52px;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+.a-trend.hot {
+  color: var(--green);
+  background: var(--good-bg);
+}
+.a-trend.cold {
+  color: var(--red-soft);
+  background: var(--danger-bg);
+}
+
+.est-range b {
+  font-size: 11.5px;
 }
 
 .tag {

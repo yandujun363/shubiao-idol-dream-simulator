@@ -121,6 +121,12 @@ const warnings = computed(() => {
       </button>
     </div>
 
+    <div class="trend mono">
+      <span class="tr-k">风向</span>
+      <span class="tr-hot">↑ {{ game.trend.hot.name }}</span>
+      <span class="tr-cold">↓ {{ game.trend.cold.name }}</span>
+    </div>
+
     <div class="list">
       <div v-if="!rows.length" class="empty">
         <div class="empty-icon">◌</div>
@@ -141,6 +147,9 @@ const warnings = computed(() => {
             <span :class="{ gain: r.pv.money > 0 }">
               {{ r.pv.money === 0 ? '免费' : `${r.pv.money > 0 ? '+' : '-'}¥${fmtMoney(Math.abs(r.pv.money))}` }}
             </span>
+          </div>
+          <div v-if="r.pv.fansHigh > r.pv.fans" class="o-range mono">
+            发挥区间 {{ fmtNum(r.pv.fansLow) }} ~ {{ fmtNum(r.pv.fansHigh) }}
           </div>
         </div>
       </TransitionGroup>

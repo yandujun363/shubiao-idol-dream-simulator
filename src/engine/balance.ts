@@ -22,9 +22,32 @@ export const BALANCE = {
   phase2CostMul: CONFIG.economy.phase2CostMul,
 }
 
-export function monthlyFixedCost(phase: 1 | 2): number {
-  const base = BALANCE.fixedCost.salary * 8 + BALANCE.fixedCost.operation
-  return Math.round(base * (phase === 2 ? BALANCE.phase2CostMul : 1))
+export interface FixedCostParts {
+  /** 8 人底薪 + 运营（含阶段系数） */
+  base: number
+  /** 规模成本：粉丝涨上来之后多出来的那部分 */
+  scale: number
+  total: number
+}
+
+/**
+ * 每月固定支出 =（8 人底薪 + 运营）× 阶段系数 + 规模成本。
+ *
+ * 规模成本是超线性的一部分：粉丝涨起来之后，棚、带宽、法务、税、还有「总得有人
+ * 接商务」的运营团队都会跟着涨。没有它，收入随粉丝线性涨、成本却钉死，
+ * 后期账上必然堆出一笔没处花的钱。
+ */
+export function fixedCostParts(phase: 1 | 2, totalFans = 0): FixedCostParts {
+  const base = Math.round(
+    (BALANCE.fixedCost.salary * 8 + BALANCE.fixedCost.operation) * (phase === 2 ? BALANCE.phase2CostMul : 1),
+  )
+  const s = CONFIG.economy.scaleCost
+  const scale = Math.round(Math.max(0, totalFans - s.freeFans) * s.perFan)
+  return { base, scale, total: base + scale }
+}
+
+export function monthlyFixedCost(phase: 1 | 2, totalFans = 0): number {
+  return fixedCostParts(phase, totalFans).total
 }
 
 export function fanScale(totalFans: number): number {
@@ -52,6 +75,18 @@ export interface RevenueSplit {
   agency: number
   /** 口碑倍率 */
   repMul: number
+  /** 打赏边际：粉丝越多，单个粉丝的月均打赏越低（路人粉不付费） */
+  dilution: number
+}
+
+/**
+ * 打赏边际稀释。
+ * 核心粉会一直打赏，路人粉不会——所以粉丝涨到后面，同样的「每人每月打赏额」撑不住。
+ * 用一条双曲曲线压平后期收入，同时几乎不影响前期（2 万粉时仍有九成多）。
+ */
+export function fanDilution(fans: number): number {
+  const d = CONFIG.revenue.dilution
+  return d.floor + ((1 - d.floor) * d.halfFans) / (d.halfFans + Math.max(0, fans))
 }
 
 /**
@@ -61,7 +96,8 @@ export interface RevenueSplit {
  */
 export function revenueSplit(fans: number, reputation: number, guildCut: number): RevenueSplit {
   const repMul = CONFIG.revenue.repBase + reputation / CONFIG.revenue.repDiv
-  const gross = Math.round(fans * CONFIG.revenue.grossPerFan * repMul)
+  const dilution = fanDilution(fans)
+  const gross = Math.round(fans * CONFIG.revenue.grossPerFan * repMul * dilution)
   const platform = Math.round(gross * CONFIG.revenue.platformCut)
   const afterPlatform = gross - platform
   const guild = Math.round(afterPlatform * guildCut)
@@ -69,7 +105,7 @@ export function revenueSplit(fans: number, reputation: number, guildCut: number)
   const merch = Math.round(
     Math.min(CONFIG.revenue.merchCap, fans * CONFIG.revenue.merchPerFan * repMul),
   )
-  return { gross, platform, afterPlatform, guild, idols, merch, agency: guild + merch, repMul }
+  return { gross, platform, afterPlatform, guild, idols, merch, agency: guild + merch, repMul, dilution }
 }
 
 /**

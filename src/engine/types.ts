@@ -13,6 +13,18 @@ export const STAT_LABELS: Record<StatKey, string> = {
 
 export type StatBlock = Record<StatKey, number>
 
+/** 一次行动的发挥结果（随机模型的产物） */
+export interface LuckRoll {
+  /** 最终作用在涨粉上的倍率 */
+  mul: number
+  /** 叙事档位 */
+  tier: 'crit' | 'good' | 'ok' | 'bad'
+  /** 给结果行用的一句话 */
+  label: string
+  /** 是否极端结果（爆款 / 翻车） */
+  extreme: 'surge' | 'flop' | null
+}
+
 export interface IdolDef {
   id: string
   /** 汉字名 */
@@ -98,8 +110,10 @@ export interface GameState {
   ending: EndingResult | null
   /** 本月已消耗的营销倍率（切片投放等） */
   marketing: number
-  /** 数据复盘：下月加成 */
+  /** 本月生效的加成 */
   buffs: Buffs
+  /** 数据复盘攒下的「下月涨粉倍率」，月末滚存到 buffs.fanMul */
+  nextFanMul: number
   /** 触发过的成就 */
   achievements: string[]
   /** 剧情旗标 */
@@ -141,6 +155,8 @@ export interface ActionResult {
   fanDelta: number
   moneyDelta: number
   repDelta: number
+  /** 通用内容行动的发挥结果；特殊行动没有 */
+  luck?: LuckRoll
   idolDeltas: {
     id: string
     stats?: Partial<StatBlock>

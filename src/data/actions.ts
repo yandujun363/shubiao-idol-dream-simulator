@@ -1,5 +1,6 @@
 import raw from './actions.json'
 import type { LineKey, StatKey } from '../engine/types'
+import type { LuckSpec } from '../engine/luck'
 
 /**
  * 行动表。数值全部在 `src/data/actions.json`。
@@ -25,7 +26,8 @@ export interface ActionDef {
   morale: number
   grow: Partial<Record<StatKey, number>>
   rep: number
-  variance: [number, number]
+  /** 发挥的随机分布（覆盖 config.luck 的默认值） */
+  luck?: Partial<LuckSpec>
   /** 每个成员只能做一次 */
   oncePerMember?: boolean
   /** 切片投放：本月全部涨粉倍率 */

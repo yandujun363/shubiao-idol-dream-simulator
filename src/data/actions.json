@@ -4,7 +4,7 @@
     "name": "杂谈直播",
     "tag": "daily",
     "ap": 1,
-    "money": 2000,
+    "money": 800,
     "desc": "开一场无主题杂谈，成本最低，涨粉最稳。",
     "quip": "不花钱的运营都是好运营。——除了真的不涨粉的那种",
     "targets": { "min": 1, "max": 1 },
@@ -14,14 +14,14 @@
     "morale": 2,
     "grow": { "talk": 0.9, "charm": 0.25 },
     "rep": 0.3,
-    "variance": [0.68, 1.32]
+    "luck": { "bodySigma": 0.16, "flopChance": 0.05, "flop": [0.45, 0.7], "surgeChance": 0.04, "surge": [1.5, 2.1] }
   },
   {
     "id": "cover",
     "name": "翻唱投稿",
     "tag": "content",
     "ap": 2,
-    "money": 8000,
+    "money": 3000,
     "desc": "录一首翻唱发出来。V圈最经典的涨粉方式，也是最卷的。",
     "quip": "选曲比唱功重要。这句话我数据表里没写，但我心里有。",
     "targets": { "min": 1, "max": 2 },
@@ -31,14 +31,14 @@
     "morale": 1,
     "grow": { "vocal": 1.5, "charm": 0.2 },
     "rep": 0.8,
-    "variance": [0.7, 1.4]
+    "luck": { "bodySigma": 0.28, "flopChance": 0.07, "flop": [0.35, 0.62], "surgeChance": 0.07, "surge": [1.6, 2.6] }
   },
   {
     "id": "dance",
     "name": "舞蹈翻跳",
     "tag": "content",
     "ap": 2,
-    "money": 9000,
+    "money": 3200,
     "desc": "对着镜子练到凌晨，成片两分钟。",
     "quip": "舞蹈区的播放量天花板比杂谈高，前提是腿抬得起来。",
     "targets": { "min": 1, "max": 2 },
@@ -48,14 +48,14 @@
     "morale": 0,
     "grow": { "dance": 1.6, "charm": 0.2 },
     "rep": 0.6,
-    "variance": [0.65, 1.45]
+    "luck": { "bodySigma": 0.32, "flopChance": 0.09, "flop": [0.3, 0.6], "surgeChance": 0.07, "surge": [1.6, 2.6] }
   },
   {
     "id": "variety",
     "name": "整活综艺",
     "tag": "content",
     "ap": 2,
-    "money": 10000,
+    "money": 3500,
     "desc": "策划一次整活。要么爆，要么炸得很难看。",
     "quip": "正向收益和负向收益都很高的项目，我一般叫它——赌。",
     "targets": { "min": 1, "max": 2 },
@@ -65,14 +65,14 @@
     "morale": 0,
     "grow": { "charm": 1.3, "talk": 0.4 },
     "rep": 0.4,
-    "variance": [0.5, 1.6]
+    "luck": { "bodySigma": 0.42, "flopChance": 0.16, "flop": [0.2, 0.45], "surgeChance": 0.14, "surge": [1.8, 3.2] }
   },
   {
     "id": "group",
     "name": "团播联动",
     "tag": "content",
     "ap": 2,
-    "money": 6000,
+    "money": 2400,
     "desc": "几个人一起播。光芒系和宝石系一起上，化学反应最好。",
     "quip": "联动是最便宜的内容。只要她们不冷场。",
     "targets": { "min": 2, "max": 4 },
@@ -82,14 +82,14 @@
     "morale": 3,
     "grow": { "talk": 0.7, "charm": 0.5 },
     "rep": 1.2,
-    "variance": [0.75, 1.35]
+    "luck": { "bodySigma": 0.2, "flopChance": 0.05, "flop": [0.5, 0.72], "surgeChance": 0.05, "surge": [1.5, 2.1] }
   },
   {
     "id": "clip",
     "name": "切片投放",
     "tag": "marketing",
     "ap": 1,
-    "money": 12000,
+    "money": 5000,
     "desc": "把上个月的高光剪成切片，买量推出去。本月全部涨粉 +28%。",
     "quip": "切片师的钱不能省。省下来的都变成隔壁家的播放量了。",
     "targets": { "min": 0, "max": 0 },
@@ -99,7 +99,6 @@
     "morale": 0,
     "grow": {},
     "rep": 0.5,
-    "variance": [1, 1],
     "boost": 1.28
   },
   {
@@ -107,7 +106,7 @@
     "name": "集中训练",
     "tag": "invest",
     "ap": 1,
-    "money": 4000,
+    "money": 1800,
     "desc": "声乐课 / 舞蹈课 / 台本课。慢，但是唯一不靠运气的东西。",
     "quip": "能力值是不会跑的。跑的是人。",
     "targets": { "min": 1, "max": 3 },
@@ -116,8 +115,7 @@
     "fatigue": 15,
     "morale": -1,
     "grow": { "vocal": 2.6 },
-    "rep": 0.2,
-    "variance": [1, 1]
+    "rep": 0.2
   },
   {
     "id": "rest",
@@ -133,8 +131,7 @@
     "fatigue": -34,
     "morale": 12,
     "grow": {},
-    "rep": 0,
-    "variance": [1, 1]
+    "rep": 0
   },
   {
     "id": "sponsor",
@@ -151,7 +148,6 @@
     "morale": -2,
     "grow": {},
     "rep": -3,
-    "variance": [0.85, 1.3],
     "sponsorRate": 0.3,
     "sponsorFade": 0.35
   },
@@ -160,7 +156,7 @@
     "name": "数据复盘",
     "tag": "daily",
     "ap": 1,
-    "money": 1000,
+    "money": 500,
     "desc": "鼠标亲自拉表。下个月全部涨粉 +18%，并让所有人心情复杂。",
     "quip": "R²只有 0.3。这说明还有 70% 的上升空间。",
     "targets": { "min": 0, "max": 0 },
@@ -170,7 +166,6 @@
     "morale": -1,
     "grow": {},
     "rep": 1,
-    "variance": [1, 1],
     "reviewBoost": 1.18
   },
   {
@@ -178,7 +173,7 @@
     "name": "原创曲",
     "tag": "content",
     "ap": 3,
-    "money": 60000,
+    "money": 20000,
     "desc": "做一首真正属于自己的歌。贵，但这是企划的骨头。",
     "quip": "原创是唯一不能外包的东西。所以我一直没做。",
     "targets": { "min": 1, "max": 2 },
@@ -188,14 +183,14 @@
     "morale": 4,
     "grow": { "vocal": 2.4, "charm": 0.6 },
     "rep": 6,
-    "variance": [0.8, 1.3]
+    "luck": { "bodySigma": 0.26, "flopChance": 0.04, "flop": [0.55, 0.75], "surgeChance": 0.06, "surge": [1.5, 2.2] }
   },
   {
     "id": "offline",
     "name": "小型线下场",
     "tag": "content",
     "ap": 3,
-    "money": 45000,
+    "money": 16000,
     "desc": "包一个小场子，办一次只有两百人的见面会。",
     "quip": "舞台是纸糊的也得有。这句话我一直认。",
     "targets": { "min": 4, "max": 8 },
@@ -205,14 +200,14 @@
     "morale": 7,
     "grow": { "charm": 1.2, "dance": 0.6, "vocal": 0.6 },
     "rep": 8,
-    "variance": [0.8, 1.3]
+    "luck": { "bodySigma": 0.2, "flopChance": 0.04, "flop": [0.55, 0.75], "surgeChance": 0.05, "surge": [1.5, 2.0] }
   },
   {
     "id": "mv3d",
     "name": "3D 短片",
     "tag": "invest",
     "ap": 2,
-    "money": 30000,
+    "money": 9000,
     "desc": "给已经 3D 化的成员拍一支短片。仪式感要花钱。",
     "quip": "动捕服挂在墙上三年了。这次让它落地。",
     "targets": { "min": 1, "max": 1, "need3D": true },
@@ -222,16 +217,16 @@
     "morale": 4,
     "grow": { "dance": 1.4, "charm": 0.8 },
     "rep": 5,
-    "variance": [0.8, 1.3]
+    "luck": { "bodySigma": 0.22, "flopChance": 0.05, "flop": [0.5, 0.72], "surgeChance": 0.05, "surge": [1.5, 2.0] }
   },
   {
     "id": "three_d",
     "name": "3D 化",
     "tag": "invest",
     "ap": 2,
-    "money": 70000,
+    "money": 22000,
     "desc": "给一位成员做 3D 模型与动捕系统。线上演唱会的入场券。",
-    "quip": "一个七十万，八个五百六十万。够让公司死一次。但梦想不讲这个。",
+    "quip": "一个模型一台车的钱，八个人就是八台。账上疼一次，梦想不讲这个。",
     "targets": { "min": 1, "max": 1 },
     "stat": "charm",
     "base": 1530,
@@ -239,7 +234,6 @@
     "morale": 7,
     "grow": { "charm": 1.5, "dance": 1 },
     "rep": 4,
-    "variance": [1, 1],
     "oncePerMember": true
   }
 ]

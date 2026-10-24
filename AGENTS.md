@@ -48,9 +48,9 @@ src/
   main.ts / App.vue          挂载、页面切换、音频开关、主题 dock、toast
   styles/base.css            全部设计变量（两套主题）、基础样式、通用类
 
-  data/config.json           ★ 全局数值：经济、收入与抽成、疲劳、心态、Live 评分、事件概率
+  data/config.json           ★ 全局数值：经济、收入与抽成、随机（luck / trend）、疲劳、心态、Live、事件概率
   data/idols.json            ★ 八个成员的能力、粉丝、心态、配色、造型编号
-  data/actions.json          ★ 十四个行动的 AP / 花费 / 涨粉 / 疲劳 / 成长 / 口碑 / 浮动
+  data/actions.json          ★ 十四个行动的 AP / 花费 / 涨粉 / 疲劳 / 成长 / 口碑 / 随机分布
   data/idols.ts actions.ts   JSON 的类型包装（+ 初始状态工厂、标签映射）
   data/narration.ts          文字演出库：每个行动 4 档 × 若干条
   data/events.ts             16 个随机事件（条件 / 正文 / 选项 → EventOutcome）
@@ -58,7 +58,9 @@ src/
 
   engine/types.ts            所有共享类型（GameState / LogLine / EventOutcome ...）
   engine/rng.ts              确定性随机数（mulberry32）
-  engine/balance.ts          读 config，派生固定支出 / 涨粉规模 / 收入拆解 / 抽成三条曲线
+  engine/balance.ts          读 config，派生固定支出（含规模成本）/ 涨粉规模 / 打赏边际 / 抽成三条曲线
+  engine/luck.ts             发挥的随机模型：对数正态主体 + 爆款/翻车尾巴 → 叙事档位
+  engine/trend.ts            本月平台风向：seed + 月份派生，不写存档
   engine/resolve.ts          ★ 结算核心：行动结算、属性成长、心态模型、月末对账
 
   stores/game.ts             ★ 状态机：编成、执行一个月、事件、阶段推进、结局、存档
@@ -121,7 +123,8 @@ docs/                        截图（README 用）
 ### 收入（这是最有意思的部分）
 
 ```
-粉丝打赏（流水）= 总粉丝 × grossPerFan × 口碑倍率
+粉丝打赏（流水）= 有效粉丝 × grossPerFan × 口碑倍率
+  有效粉丝 = 总粉丝 × 打赏边际（dilution）
   └ 平台先抽 platformCut（50%）
       └ 剩下的里面公会抽 guildCut（默认 30%，玩家可调 10%–50%）
           └ 其余给主播
@@ -129,21 +132,47 @@ docs/                        截图（README 用）
 商务恰饭：一次性外快，不进流水
 ```
 
+**打赏边际**（`revenue.dilution`）是一条双曲线：核心粉会一直打赏，路人粉不会。
+粉丝越多，单个粉丝的月均打赏越低（2 万粉时约 0.9，50 万粉时约 0.5）。
+没有它，收入随粉丝线性涨、成本却钉死，后期账上必然堆出一笔没处花的钱。
+
 `guildCut` 是全局最重要的杠杆，抽高了对公会有利，但有**四重代价**：
 
-1. **涨粉变慢**（`growthPenalty`，抽满 50% 时内容产出只剩 64%）
+1. **涨粉变慢**（`growthPenalty`，抽满 50% 时内容产出只剩 72%）
 2. **口碑下滑**（`reputationPenalty`）
-3. **心态有天花板**（`aboveCapSensitivity`，抽 50% 时上限只剩 16）
+3. **心态有天花板**（`aboveCapSensitivity`，抽 50% 时上限只剩 20）
 4. **感知滞后**：成员记住的是长期分成，`guildCutPerceived` 每月只追 `adaptSpeed`，
    临时调低救不了场；单次改动超过 `changeThreshold` 还会额外掉心态
 
-实测评级（`npm run sim`）：抽 30% 时 83% 活到第 24 个月、48 万粉、满月；
-抽 50% 时 56% 活下来但只有 15 万粉、只亮了一排。**靠压榨能活，但梦会变小。**
+抽低没有直接惩罚，代价是**公会现金流**：分成少、制作费和 3D 都得往后拖。
+所以这个杠杆现在换的是「钱 / 粉丝 / 结局档位」，而不是生死。
+实测评级（`npm run sim`）：抽 30% 时 100% 活到第 24 个月、50 万粉、资金 230 万；
+抽 50% 时 94% 活下来但只有 18 万粉。**靠压榨能活，但梦会变小。**
+
+### 发挥的随机模型（`config.luck` + `actions.json` 的 `luck`）
+
+每月的涨粉不是一个均匀浮动的固定值，而是三层：
+
+1. **主体**：对数正态（中位数 1，sigma 由行动决定）。杂谈 sigma 0.16 很稳，整活 0.42 很飘。
+2. **尾巴**：小概率的 `surge`（爆款，1.6–3.2 倍）与 `flop`（翻车，砍到两三成）。
+3. **分档**：最终倍率落进 `config.luck.tiers` 的哪个区间，决定叙事走 crit / good / ok / bad。
+
+档位是**从数字推出来的**，所以「文案」和「涨粉数」永远一致，不会出现文案说爆了、数字却很平的情况。
+UI 上的「发挥区间」就是 `flop` 下界到 `surge` 上界；中间那个期望值才是「预估」。
+
+### 本月风向（`config.trend`）
+
+每个月由 `seed + 月份` 派生一个被平台推的内容方向和一个被限流的方向
+（默认 ×1.35 / ×0.78，池子是杂谈 / 翻唱 / 舞蹈 / 整活 / 团播）。
+它不写存档，读档重开都不变，但**开局就会打在日志和行动面板上**——是信息，不是噪音。
+玩家能据此安排本月侧重，这也是「每月数字都不一样」的主要来源之一。
 
 ### 状态与失败
 
-- **资金**：每月固定支出 = 底薪 × 8 + 运营。不增长就会破产 → BE。
-- **疲劳**：动作累加，每月只自然恢复一点点。超过 100 病倒（下月 AP −1）。
+- **资金**：每月固定支出 =（底薪 × 8 + 运营）× 阶段系数 + 规模成本。
+  规模成本 = 超过 `freeFans` 的那部分粉丝 × `perFan`（棚、带宽、法务、税）。
+  不增长就会破产 → BE。
+- **疲劳**：动作累加，每月自然恢复 5 点。超过 100 病倒（下月 AP −1）。
 - **心态**：按月结算，取决于疲劳区间、粉丝增长、阶段、悲观螺旋、抽成感知。
   心态 ≤ 0 → 进入毕业倒计时（`riskMonths`）→ **任何一个人毕业，企划立刻结束**。
 - **休息**是最便宜的心态/疲劳修复手段，但吃 AP ——这是核心的资源博弈。
@@ -152,6 +181,7 @@ docs/                        截图（README 用）
 
 第 24 个月月末结算后进 Live。评分 = 粉丝体量 + 成员能力 + 心态 + 口碑 + 3D 完成度
 + 制作规格 − 疲劳扣分（权重全在 `config.live.weights`）。
+制作费 ¥250,000，3D 化每位 ¥22,000（八个全做 17.6 万，是能攒出来的）。
 
 档位（`config.live.tiers`）：`legend` 88 / `perfect` 78 / `great` 62 / `ok` 46 / `poor` 0。
 
@@ -169,7 +199,8 @@ docs/                        截图（README 用）
 2. `src/data/narration.ts` 加同名的 `ACTION_NARRATION[id]`，四档（crit/good/ok/bad）各写 2–3 条。
 3. 如果需要特殊结算（像 `clip` / `review` / `sponsor` / `rest` / `training` / `three_d` 那样），
    在 `src/engine/resolve.ts` 的 `resolveAction` 里加一个 `else if (action.id === 'xxx')` 分支；
-   否则走通用路径（基础涨粉 × 发挥水平 × 规模 × 营销 × 抽成惩罚 × 浮动）。
+   否则走通用路径（基础涨粉 × 发挥水平 × 粉丝规模 × 本月风向 × 营销 × 抽成惩罚 × luck.mul）。
+   想要不同的手感就在 JSON 里给这条行动配 `luck`（sigma / 爆款率 / 翻车率），不要写进代码。
 4. 跑 `npm run sim` 看平衡有没有崩。
 
 ### 加一个随机事件
@@ -208,9 +239,12 @@ docs/                        截图（README 用）
 
 | 想调整 | 改哪 |
 | --- | --- |
-| 钱不够 / 太松 | `economy.salaryPerIdol`、`economy.operationBase`、`revenue.grossPerFan` |
+| 钱不够 / 太松 | `economy.salaryPerIdol`、`economy.operationBase`、`economy.scaleCost`、`revenue.grossPerFan` |
+| 后期钱太多 / 太少 | `revenue.dilution`（halfFans 越大越晚稀释，floor 是下限）、`economy.scaleCost` |
 | 抽成杠杆太强/太弱 | `revenue.guildCut.*` |
 | 涨粉太快/太慢 | `actions.json` 里的 `base`，或 `fanGrowth.fansScale` |
+| 数字「太假 / 写死」 | `config.luck`（全局尾部概率）、`actions.json` 里各行动的 `luck` |
+| 每月都一样 | `config.trend`（`hotMul` / `coldMul` / 池子） |
 | 心态太高压/太宽松 | `morale.bands`、`morale.growthBonus`、`graduation.*` |
 | Live 太难/太易 | `live.weights`、`live.tiers`、`live.venueCost` |
 
@@ -255,7 +289,7 @@ docs/                        截图（README 用）
    必须先 `const wasPhase = phase` 再判断，否则第 12 个月直接跳 Live。
 3. **预览状态不能写存档**。`?preview=stage` 会把 `gs` 改成假数据，
    `save()` 里有 `isPreview` 守卫，别删。
-4. **旧存档兼容**。`load()` 里给后加的字段补默认值（`guildCut` 系列、`counters`）。
+4. **旧存档兼容**。`load()` 里给后加的字段补默认值（`guildCut` 系列、`counters`、`nextFanMul`）。
    加字段时记得补一行，或者干脆提升 `SAVE_KEY` 版本。
 5. **心态是会溢出的**。`monthEnd` 里既要做边际递减，也要按抽成天花板夹住，
    别只 `Math.min(100, ...)`。
@@ -264,6 +298,13 @@ docs/                        截图（README 用）
    不要 `new Application()`。浏览器对 WebGL 上下文数量有限制。
 8. **主题切换要跟着重绘**。canvas 绘制的图表（`DataPanel`）和立绘都要 `watch(resolved, ...)` 重画，
    否则切主题后会残留旧颜色。
+9. **叙事档位来自随机模型，不是「结果 ÷ 期望」**。`resolveAction` 用 `luck.tier` 决定文案，
+   别再拿 `fanDelta / expectedFanGain` 算档位——切片投放、复盘加成会把比值整体抬高，
+   导致每个月都在「超常发挥」。
+10. **复盘是下个月生效**。它写的是 `state.nextFanMul`，月末滚存到 `buffs.fanMul`。
+    直接改 `buffs.fanMul` 会变成「当月后面的行动全 +18%」，和文案对不上。
+11. **风向不要写进存档**。`monthTrend(seed, month)` 是纯函数，读档、重开都必须得到同一个月。
+    加字段反而会让旧存档对不上月份。
 
 ---
 
@@ -281,14 +322,20 @@ docs/                        截图（README 用）
 ```bash
 npm run typecheck              # 必须无输出
 npm run build                  # 必须成功
-npm run sim 200                # 默认策略，存活率 ~98%（当前基线）
-npm run sim 200 naive          # 什么都不管，存活率 0%
-GUILD_CUT=0.3 npm run sim 200  # 固定抽成 30%，中标解：~83%
-GUILD_CUT=0.2 npm run sim 200  # 固定抽成 20%，缺钱解：~9%
+npm run sim 200                # 默认策略：100% / 51 万粉 / 结余 237 万
+npm run sim 200 naive          # 什么都不管：平均第 10 个月毕业，存活率 0%
+GUILD_CUT=0.2 npm run sim 200  # 固定抽成 20%：100% / 54 万粉 / 结余 60 万
+GUILD_CUT=0.4 npm run sim 200  # 固定抽成 40%：100% / 41 万粉 / 半场灯
+GUILD_CUT=0.5 npm run sim 200  # 固定抽成 50%：94% / 18 万粉 / 只亮了一排
 ```
 
-注意：**默认策略是脚本里写的机器策略，接近最优解，98% 是上限而不是人类难度。**
-想判断「这个改动会不会让游戏变难/变简单」，看固定抽成的两行更有参考价值。
+注意：**默认策略是脚本里写的机器策略，接近最优解，100% 是上限而不是人类难度。**
+想判断「这个改动会不会让游戏变难/变简单」，看固定抽成的三行更有参考价值——
+它们现在区分的是粉丝 / 结余 / 结局档位，而不是存活率。
+
+模拟器最后还会打一段**随机性体检**：同一个行动在同样的状态下掷 3000 次，
+输出 P5 / P25 / 中位 / P75 / P95 和爆款 / 翻车率。
+如果分位挤成一条线、或者爆款率对不上 `config.luck`，说明随机模型又退化成「写死的」了。
 
 再手动点一遍：标题 → 开新局 → 编成 → 执行 → 事件 → 换主题 → 数据表 → 成员详情 → 结局。
 至少确认**浅色和深色各看一遍**。
@@ -297,8 +344,11 @@ GUILD_CUT=0.2 npm run sim 200  # 固定抽成 20%，缺钱解：~9%
 
 `scripts/sim.ts` 里有两个策略：默认的「还算会玩」（会按资金和心态调抽成、会轮休）
 和 `naive`（不休息、不看心态、抽成拉满）。
-它会打印存活率、破产/毕业比、粉丝区间、Live 评级分布。
+它会打印存活率、破产/毕业比、粉丝区间、Live 评级分布，以及一张随机性体检表。
 环境变量可以定点测：`GUILD_CUT=0.4 npm run sim 150`。
+
+默认策略现在会跟着「本月风向」挑被推的那个行动（模拟玩家看得到面板），
+所以它跑出来的基线包含风向收益。
 
 改数值前先跑一次当基线，改完再跑一次对比。
 

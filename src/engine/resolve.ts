@@ -3,9 +3,11 @@ import type {
   GameState,
   IdolState,
   LogLine,
+  LuckRoll,
   StatKey,
 } from './types'
 import type { ActionDef } from '../data/actions'
+import { ACTION_BY_ID } from '../data/actions'
 import { ACTION_NARRATION, MOUSE_QUOTES, FAN_QUOTES, type Tier } from '../data/narration'
 import { IDOL_BY_ID } from '../data/idols'
 import {
@@ -18,6 +20,8 @@ import {
   guildCutReputationDelta,
   revenueSplit,
 } from './balance'
+import { luckBounds, rollLuck } from './luck'
+import { monthTrend, trendConfig, trendMulOf } from './trend'
 import type { Rng } from './rng'
 
 /* ------------------------------------------------------------------ */
@@ -51,13 +55,6 @@ export function synergy(ids: IdolState[]): { mul: number; note: string | null } 
   return { mul: 1.04, note: '同系联动，默契加成' }
 }
 
-function tierOf(ratio: number): Tier {
-  if (ratio >= 1.55) return 'crit'
-  if (ratio >= 1.12) return 'good'
-  if (ratio >= 0.74) return 'ok'
-  return 'bad'
-}
-
 function interpolate(tpl: string, names: string[], romaji: string): string {
   const n = names[0] ?? '成员'
   const n2 = names[1] ?? names[0] ?? '成员'
@@ -87,10 +84,38 @@ function pickNarration(actionId: string, tier: Tier, ids: IdolState[], rng: Rng)
 /* ------------------------------------------------------------------ */
 
 export function expectedFanGain(action: ActionDef, state: GameState, targets: IdolState[]): number {
-  if (action.base <= 0) return 0
+  return estimateFanGain(action, state, targets).mid
+}
+
+/**
+ * 一次行动的涨粉预估。
+ *
+ * mid 是「运气正常」时的期望值，low / high 是这个行动能吃到的浮动下界与上界
+ * （来自爆款 / 翻车的尾巴）。UI 上显示成区间，玩家就不会觉得数字是写死的。
+ */
+export function estimateFanGain(
+  action: ActionDef,
+  state: GameState,
+  targets: IdolState[],
+): { low: number; mid: number; high: number } {
+  if (action.base <= 0) return { low: 0, mid: 0, high: 0 }
   const q = targets.length ? groupQuality(targets, action.stat) : 1
   const total = state.idols.reduce((s, i) => s + i.fans, 0)
-  return Math.round(action.base * Math.pow(Math.max(q, 0.1), 0.95) * fanScale(total))
+  const base =
+    action.base *
+    Math.pow(Math.max(q, 0.1), 0.95) *
+    fanScale(total) *
+    synergy(targets).mul *
+    trendMulOf(monthTrend(state.seed, state.month), action.id) *
+    state.marketing *
+    state.buffs.fanMul *
+    guildCutGrowthMul(state.resources.guildCutPerceived)
+  const b = luckBounds(action.luck)
+  return {
+    low: Math.round(base * b.low),
+    mid: Math.round(base),
+    high: Math.round(base * b.high),
+  }
 }
 
 export function resolveAction(
@@ -109,6 +134,9 @@ export function resolveAction(
   let fanDelta = 0
   let moneyDelta = -action.money
   let repDelta = action.rep
+  /** 通用内容行动的发挥档位（特殊行动不报） */
+  let luckLabel = ''
+  let luckRoll: LuckRoll | undefined
 
   const deltas: ActionResult['idolDeltas'] = targets.map((t) => ({ id: t.id }))
   const [n0] = targets.map((t) => nameOf(t.id))
@@ -132,7 +160,7 @@ export function resolveAction(
       text: `切片投放：本月全部内容涨粉 +${Math.round((clipBoost - 1) * 100)}%。投放本身带来 ${fanDelta.toLocaleString()} 关注。`,
     })
   } else if (action.id === 'review') {
-    state.buffs.fanMul *= reviewBoost
+    state.nextFanMul *= reviewBoost
     fanDelta = Math.round(totalFans * 0.004)
     const verdicts = [
       '近三十天的涨粉曲线拟合完成了。R² = 0.31。',
@@ -197,23 +225,27 @@ export function resolveAction(
 
     const q = groupQuality(targets, action.stat)
     const syn = synergy(targets)
-    const variance = rng.range(action.variance[0], action.variance[1])
-    const raw = action.base * Math.pow(Math.max(q, 0.08), 0.95) * fanScale(totalFans) * variance * syn.mul
+    const trendMul = trendMulOf(monthTrend(state.seed, state.month), action.id)
+    const luck = rollLuck(rng, action.luck)
+    const raw = action.base * Math.pow(Math.max(q, 0.08), 0.95) * fanScale(totalFans) * syn.mul * trendMul
     fanDelta = Math.round(
-      raw * state.marketing * state.buffs.fanMul * guildCutGrowthMul(state.resources.guildCutPerceived),
+      raw *
+        state.marketing *
+        state.buffs.fanMul *
+        guildCutGrowthMul(state.resources.guildCutPerceived) *
+        luck.mul,
     )
 
-    const ratio = (fanDelta / Math.max(1, expectedFanGain(action, state, targets))) || 0
-    const tier = tierOf(ratio)
+    const tier = luck.tier
+    luckLabel = luck.label
+    luckRoll = luck
 
-    // 整活的额外暴击 / 翻车
+    // 整活额外吃口碑与心态：爆了大家都开心，翻车了要被剪成吐槽视频
     if (action.id === 'variety') {
-      if (tier === 'crit') {
-        fanDelta = Math.round(fanDelta * 1.8)
+      if (luck.extreme === 'surge') {
         repDelta += 3
         logs.push({ kind: 'good', text: '爆了。这期整活真的爆了。', who: '运营' })
-      } else if (tier === 'bad') {
-        fanDelta = Math.round(fanDelta * 0.35)
+      } else if (luck.extreme === 'flop') {
         repDelta -= 4
         targets.forEach((t) => {
           const d = deltas.find((x) => x.id === t.id)!
@@ -227,6 +259,12 @@ export function resolveAction(
     if (text) logs.push({ kind: 'narration', text })
 
     if (syn.note) logs.push({ kind: 'system', text: syn.note })
+    if (trendMul !== 1) {
+      logs.push({
+        kind: 'system',
+        text: `本月平台风向：${action.name} ${trendMul > 1 ? '被推' : '被压'}（×${trendMul.toFixed(2)}）。`,
+      })
+    }
 
     // 属性成长 + 疲劳 + 心态
     targets.forEach((t) => {
@@ -252,12 +290,15 @@ export function resolveAction(
         ? `粉丝 ${fanDelta.toLocaleString()}`
         : '粉丝无变化'
 
+  // 只有在发挥明显偏离时才报档位，正常发挥不刷屏
+  const luckNote = luckLabel && luckLabel !== '正常发挥' ? ` · ${luckLabel}` : ''
+
   logs.push({
     kind: 'result',
-    text: `${qualNote}${moneyDelta !== 0 ? ` · 资金 ${moneyDelta > 0 ? '+' : '-'}¥${Math.abs(moneyDelta).toLocaleString()}` : ''}${repDelta ? ` · 口碑 ${repDelta > 0 ? '+' : ''}${repDelta.toFixed(1)}` : ''}`,
+    text: `${qualNote}${luckNote}${moneyDelta !== 0 ? ` · 资金 ${moneyDelta > 0 ? '+' : '-'}¥${Math.abs(moneyDelta).toLocaleString()}` : ''}${repDelta ? ` · 口碑 ${repDelta > 0 ? '+' : ''}${repDelta.toFixed(1)}` : ''}`,
   })
 
-  return { logs, fanDelta, moneyDelta, repDelta, idolDeltas: deltas }
+  return { logs, fanDelta, moneyDelta, repDelta, luck: luckRoll, idolDeltas: deltas }
 }
 
 /* ------------------------------------------------------------------ */
@@ -327,6 +368,8 @@ export interface MonthEndResult {
 export interface MonthEndOptions {
   fixedCost: number
   phase: 1 | 2
+  /** 固定支出里的规模成本，只为账本拆开展示用 */
+  scaleCost?: number
 }
 
 export function monthEnd(state: GameState, rng: Rng, opts: MonthEndOptions): MonthEndResult {
@@ -368,6 +411,11 @@ export function monthEnd(state: GameState, rng: Rng, opts: MonthEndOptions): Mon
     rows: [
       { label: '直播流水（粉丝打赏）', value: `¥${split.gross.toLocaleString()}`, tone: 'sub' },
       {
+        label: `打赏边际（路人粉稀释）`,
+        value: `×${split.dilution.toFixed(2)}`,
+        tone: 'sub',
+      },
+      {
         label: `平台抽成 ${pct(CONFIG.revenue.platformCut)}`,
         value: `-¥${split.platform.toLocaleString()}`,
         tone: 'out',
@@ -380,11 +428,21 @@ export function monthEnd(state: GameState, rng: Rng, opts: MonthEndOptions): Mon
       },
       { label: '主播分成', value: `¥${split.idols.toLocaleString()}`, tone: 'sub' },
       { label: '周边与外快（不被抽成）', value: `+¥${split.merch.toLocaleString()}`, tone: 'in' },
-      {
-        label: overrun ? `固定支出（含超支 ¥${overrun.toLocaleString()}）` : '固定支出',
-        value: `-¥${cost.toLocaleString()}`,
-        tone: 'out',
-      },
+      ...(opts.scaleCost
+        ? [
+            { label: '底薪与运营', value: `-¥${(cost - overrun - opts.scaleCost).toLocaleString()}`, tone: 'out' as const },
+            { label: '规模成本（棚 / 带宽 / 税）', value: `-¥${opts.scaleCost.toLocaleString()}`, tone: 'out' as const },
+            ...(overrun
+              ? [{ label: '本月超支', value: `-¥${overrun.toLocaleString()}`, tone: 'out' as const }]
+              : []),
+          ]
+        : [
+            {
+              label: overrun ? `固定支出（含超支 ¥${overrun.toLocaleString()}）` : '固定支出',
+              value: `-¥${cost.toLocaleString()}`,
+              tone: 'out' as const,
+            },
+          ]),
       {
         label: `本月净${income - cost >= 0 ? '收入' : '亏损'}`,
         value: `${income - cost >= 0 ? '+' : '-'}¥${Math.abs(income - cost).toLocaleString()}`,
@@ -497,12 +555,36 @@ export function monthEnd(state: GameState, rng: Rng, opts: MonthEndOptions): Mon
   return { logs, income, cost, split, bankrupt, graduations, sick, warned }
 }
 
+/** 给 UI 与日志共用的本月风向（含中文标签） */
+export function monthTrendView(state: GameState): {
+  hot: { id: string; name: string; mul: number }
+  cold: { id: string; name: string; mul: number }
+  hotLabel: string
+  coldLabel: string
+} {
+  const trend = monthTrend(state.seed, state.month)
+  const nameOfAction = (id: string) => ACTION_BY_ID.get(id)?.name ?? id
+  return {
+    hot: { id: trend.hot, name: nameOfAction(trend.hot), mul: trend.hotMul },
+    cold: { id: trend.cold, name: nameOfAction(trend.cold), mul: trend.coldMul },
+    hotLabel: trendConfig().hotLabel,
+    coldLabel: trendConfig().coldLabel,
+  }
+}
+
 /** 月度开场白 */
 export function monthOpening(state: GameState, rng: Rng, monthLabel: string): LogLine[] {
   const total = state.idols.reduce((s, i) => s + i.fans, 0)
+  const v = monthTrendView(state)
   const lines: LogLine[] = [
     { kind: 'system', text: `—— ${monthLabel} · 企划总粉丝 ${total.toLocaleString()} · 资金 ¥${state.resources.money.toLocaleString()} ——` },
   ]
+  if (v.hot.id) {
+    lines.push({
+      kind: 'system',
+      text: `【本月风向】${v.hotLabel}「${v.hot.name}」（×${v.hot.mul.toFixed(2)}），${v.coldLabel}「${v.cold.name}」（×${v.cold.mul.toFixed(2)}）。`,
+    })
+  }
   if (rng.chance(0.5)) lines.push({ kind: 'quote', text: rng.pick(MOUSE_QUOTES), who: '鼠标' })
   if (rng.chance(0.35)) lines.push({ kind: 'narration', text: rng.pick(FAN_QUOTES), who: '弹幕' })
   return lines
