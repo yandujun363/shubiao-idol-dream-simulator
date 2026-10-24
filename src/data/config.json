@@ -10,7 +10,7 @@
     "scaleCost": {
       "_comment": "规模成本：粉丝超过 freeFans 之后，每多一个粉丝每月多花 perFan。摊子大了，人、棚、带宽、法务都要钱。",
       "freeFans": 40000,
-      "perFan": 0.55
+      "perFan": 0.75
     }
   },
 
@@ -42,6 +42,12 @@
     },
     "merchPerFan": 0.26,
     "merchCap": 60000,
+    "merch": {
+      "_comment": "周边制作：开一批要钱（打样、开模、仓储），开完之后每月的周边收入上升；有批数上限。",
+      "stepPerLevel": 0.3,
+      "capPerLevel": 0.5,
+      "maxLevel": 3
+    },
     "repBase": 0.6,
     "repDiv": 125
   },

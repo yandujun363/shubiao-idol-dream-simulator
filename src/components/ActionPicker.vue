@@ -180,6 +180,9 @@ const STAT_OPTIONS = [
                 <span>{{ a.money ? `¥${fmtMoney(a.money)}` : '免费' }}</span>
                 <span v-if="a.targets.max > 0">{{ a.targets.min === a.targets.max ? a.targets.min : `${a.targets.min}-${a.targets.max}` }} 人</span>
                 <span v-else>企划级</span>
+                <span v-if="a.id === 'merch' && game.merchNextGain > 0" class="a-gain">
+                  月收 +{{ fmtNum(game.merchNextGain) }}
+                </span>
                 <span class="a-tag">{{ TAG_LABEL[a.tag] }}</span>
               </div>
               <span
@@ -275,6 +278,10 @@ const STAT_OPTIONS = [
                   <b class="mono" :class="trendOf(selected.id)!.hot ? 'up' : 'down'">
                     {{ pctOf(trendOf(selected.id)!.mul) }}
                   </b>
+                </div>
+                <div v-if="selected.id === 'merch' && game.merchNextGain > 0" class="est-row">
+                  <span>周边月收入</span>
+                  <b class="mono up">+¥{{ fmtNum(game.merchNextGain) }}</b>
                 </div>
                 <div class="est-row">
                   <span>资金</span>
@@ -494,6 +501,10 @@ const STAT_OPTIONS = [
   gap: 8px;
   font-size: 10px;
   color: var(--dimmer);
+}
+
+.a-gain {
+  color: var(--green);
 }
 
 .a-tag {

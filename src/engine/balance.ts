@@ -77,6 +77,8 @@ export interface RevenueSplit {
   repMul: number
   /** 打赏边际：粉丝越多，单个粉丝的月均打赏越低（路人粉不付费） */
   dilution: number
+  /** 周边乘数（开了几批周边，看得到回款） */
+  merchMul: number
 }
 
 /**
@@ -90,11 +92,30 @@ export function fanDilution(fans: number): number {
 }
 
 /**
+ * 周边月收入。
+ * 开了几批周边（merchLevel）决定单价与库存上限：第一批是试水，后面铺开才算生意。
+ * 它不被平台和公会抽成，所以是公会最干净的一块现金流。
+ */
+export function merchRevenue(fans: number, reputation: number, level: number): number {
+  const m = CONFIG.revenue.merch
+  const lv = Math.max(0, Math.min(m.maxLevel, level))
+  const repMul = CONFIG.revenue.repBase + reputation / CONFIG.revenue.repDiv
+  const perFan = CONFIG.revenue.merchPerFan * (1 + m.stepPerLevel * lv)
+  const cap = CONFIG.revenue.merchCap * (1 + m.capPerLevel * lv)
+  return Math.round(Math.min(cap, fans * perFan * repMul))
+}
+
+/**
  * 一个月的收入拆解。
  * 平台先抽 platformCut，剩下的里面公会抽 guildCut，其余给主播。
- * 周边不受抽成影响，但有上限（很难赚多）。
+ * 周边不受抽成影响，但受批数与上限约束。
  */
-export function revenueSplit(fans: number, reputation: number, guildCut: number): RevenueSplit {
+export function revenueSplit(
+  fans: number,
+  reputation: number,
+  guildCut: number,
+  merchLevel = 0,
+): RevenueSplit {
   const repMul = CONFIG.revenue.repBase + reputation / CONFIG.revenue.repDiv
   const dilution = fanDilution(fans)
   const gross = Math.round(fans * CONFIG.revenue.grossPerFan * repMul * dilution)
@@ -102,10 +123,9 @@ export function revenueSplit(fans: number, reputation: number, guildCut: number)
   const afterPlatform = gross - platform
   const guild = Math.round(afterPlatform * guildCut)
   const idols = afterPlatform - guild
-  const merch = Math.round(
-    Math.min(CONFIG.revenue.merchCap, fans * CONFIG.revenue.merchPerFan * repMul),
-  )
-  return { gross, platform, afterPlatform, guild, idols, merch, agency: guild + merch, repMul, dilution }
+  const merch = merchRevenue(fans, reputation, merchLevel)
+  const merchMul = 1 + CONFIG.revenue.merch.stepPerLevel * Math.max(0, Math.min(CONFIG.revenue.merch.maxLevel, merchLevel))
+  return { gross, platform, afterPlatform, guild, idols, merch, agency: guild + merch, repMul, dilution, merchMul }
 }
 
 /**

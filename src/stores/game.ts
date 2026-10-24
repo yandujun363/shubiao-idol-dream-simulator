@@ -20,6 +20,7 @@ import {
   guildCutMoraleCeiling,
   guildCutMoraleDelta,
   fixedCostParts,
+  merchRevenue,
   monthlyFixedCost,
   revenueSplit,
 } from '../engine/balance'
@@ -99,6 +100,7 @@ function createState(seed: number): GameState {
     marketing: 1,
     buffs: { fanMul: 1, repBoost: 0, fatigueCut: 1 },
     nextFanMul: 1,
+    merchLevel: 0,
     achievements: [],
     flags: {},
     counters: {},
@@ -144,8 +146,18 @@ export const useGameStore = defineStore('game', () => {
 
   /** 当前抽成率下的整月收入预估（按当前粉丝与口碑） */
   const revenuePreview = computed(() =>
-    revenueSplit(totalFans.value, gs.resources.reputation, gs.resources.guildCut),
+    revenueSplit(totalFans.value, gs.resources.reputation, gs.resources.guildCut, gs.merchLevel),
   )
+
+  /** 再开一批周边，每月能多回多少钱（已经铺满就是 0） */
+  const merchNextGain = computed(() => {
+    const m = CONFIG.revenue.merch
+    if (gs.merchLevel >= m.maxLevel) return 0
+    return (
+      merchRevenue(totalFans.value, gs.resources.reputation, gs.merchLevel + 1) -
+      merchRevenue(totalFans.value, gs.resources.reputation, gs.merchLevel)
+    )
+  })
 
   /** 当前抽成下，成员的心态变化与天花板 */
   const cutMoraleHint = computed(() => ({
@@ -227,6 +239,9 @@ export const useGameStore = defineStore('game', () => {
   const trend = computed(() => monthTrendView(gs as GameState))
 
   function lockReason(def: ActionDef): string | null {
+    if (def.id === 'merch' && gs.merchLevel >= CONFIG.revenue.merch.maxLevel) {
+      return `周边线已经铺满（${CONFIG.revenue.merch.maxLevel} 批）`
+    }
     if (usedAp.value + def.ap > gs.resources.apMax) return `行动点不足（需 ${def.ap} AP）`
     if (gs.resources.money < def.money + pendingCost.value) return `资金不足（需 ¥${def.money.toLocaleString()}）`
     return null
@@ -296,6 +311,11 @@ export const useGameStore = defineStore('game', () => {
     if (p.actionId === 'clip') {
       const fans = Math.round(totalFans.value * 0.014)
       return { fans, fansLow: Math.round(fans * 0.8), fansHigh: Math.round(fans * 1.25), money: -def.money, ap: def.ap }
+    }
+    if (p.actionId === 'merch') {
+      // 周边企划不带多少涨粉，带的是每月的回款
+      const fans = Math.round(totalFans.value * 0.002)
+      return { fans, fansLow: fans, fansHigh: fans, money: -def.money, ap: def.ap }
     }
     if (p.actionId === 'review') {
       const fans = Math.round(totalFans.value * 0.004)
@@ -661,6 +681,7 @@ export const useGameStore = defineStore('game', () => {
       if (typeof r.guildCutPrev !== 'number') r.guildCutPrev = r.guildCut
       if (!gs.counters) gs.counters = {}
       if (typeof gs.nextFanMul !== 'number') gs.nextFanMul = 1
+      if (typeof gs.merchLevel !== 'number') gs.merchLevel = 0
       logs.value = data.logs ?? []
       screen.value = 'game'
       phase.value = 'idle'
@@ -751,6 +772,7 @@ export const useGameStore = defineStore('game', () => {
     revenuePreview,
     cutMoraleHint,
     trend,
+    merchNextGain,
     setGuildCut,
     avgMorale,
     avgFatigue,

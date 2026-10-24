@@ -23,7 +23,12 @@ const eff = computed(() => {
 const takeHome = computed(() => {
   if (!props.id || !st.value) return { base: 0, share: 0, total: 0 }
   const total = game.gs.idols.reduce((a, i) => a + i.fans, 0)
-  const split = revenueSplit(total, game.gs.resources.reputation, game.gs.resources.guildCut)
+  const split = revenueSplit(
+    total,
+    game.gs.resources.reputation,
+    game.gs.resources.guildCut,
+    game.gs.merchLevel,
+  )
   const base = CONFIG.economy.salaryPerIdol
   return {
     base,

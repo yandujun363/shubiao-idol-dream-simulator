@@ -148,7 +148,10 @@ const warnings = computed(() => {
               {{ r.pv.money === 0 ? '免费' : `${r.pv.money > 0 ? '+' : '-'}¥${fmtMoney(Math.abs(r.pv.money))}` }}
             </span>
           </div>
-          <div v-if="r.pv.fansHigh > r.pv.fans" class="o-range mono">
+          <div v-if="r.def.id === 'merch' && game.merchNextGain > 0" class="o-range mono">
+            周边月收入 +¥{{ fmtNum(game.merchNextGain) }}
+          </div>
+          <div v-else-if="r.pv.fansHigh > r.pv.fans" class="o-range mono">
             发挥区间 {{ fmtNum(r.pv.fansLow) }} ~ {{ fmtNum(r.pv.fansHigh) }}
           </div>
         </div>

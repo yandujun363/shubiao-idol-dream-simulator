@@ -271,11 +271,19 @@ const r2 = computed(() => {
             <b class="mono">¥{{ fmtMoney(game.revenuePreview.idols) }}</b>
           </div>
           <div class="f-item">
-            <span class="f-k">周边与外快</span>
+            <span class="f-k">
+              周边与外快<template v-if="game.gs.merchLevel > 0">
+                · 第 {{ game.gs.merchLevel }} 批 ×{{ game.revenuePreview.merchMul.toFixed(2) }}</template
+              >
+            </span>
             <b class="mono in">+¥{{ fmtMoney(game.revenuePreview.merch) }}</b>
           </div>
           <div class="f-item">
-            <span class="f-k">月固定支出</span>
+            <span class="f-k">
+              月固定支出<template v-if="game.scaleCost > 0">
+                · 含规模 {{ fmtMoney(game.scaleCost) }}</template
+              >
+            </span>
             <b class="mono out">-¥{{ fmtMoney(game.fixedCost) }}</b>
           </div>
         </div>

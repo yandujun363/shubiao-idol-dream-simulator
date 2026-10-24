@@ -209,6 +209,22 @@ export function resolveAction(
       d.morale = action.morale
     })
     logs.push({ kind: 'result', text: `${label}课。${targets.map((t) => nameOf(t.id)).join('、')} 各练了四周。` })
+  } else if (action.id === 'merch') {
+    const M = CONFIG.revenue.merch
+    const before = state.merchLevel
+    state.merchLevel = Math.min(M.maxLevel, before + 1)
+    const bump = state.merchLevel > before
+    logs.push({
+      kind: bump ? 'good' : 'system',
+      text: bump
+        ? `第 ${state.merchLevel} 批周边上架。设计、打样、开模、仓储，一共 ¥${action.money.toLocaleString()}。`
+        : `周边线已经铺满了（${M.maxLevel} 批），这次的物料堆在仓库里。`,
+    })
+    logs.push({
+      kind: 'system',
+      text: `周边月收入 ×${(1 + M.stepPerLevel * state.merchLevel).toFixed(2)}，库存上限 +${Math.round(M.capPerLevel * state.merchLevel * 100)}%。回款从这个月的对账开始算。`,
+    })
+    fanDelta = Math.round(totalFans * 0.002)
   } else if (action.id === 'three_d') {
     const t = targets[0]
     if (t) {
@@ -395,7 +411,7 @@ export function monthEnd(state: GameState, rng: Rng, opts: MonthEndOptions): Mon
   }
 
   /* 收入：平台先抽 50%，剩下的里面公会抽 guildCut，其余给主播 */
-  const split = revenueSplit(totalFans, state.resources.reputation, state.resources.guildCut)
+  const split = revenueSplit(totalFans, state.resources.reputation, state.resources.guildCut, state.merchLevel)
   const income = split.agency
 
   /* 支出：固定 + 随机运营波动 */
@@ -427,7 +443,11 @@ export function monthEnd(state: GameState, rng: Rng, opts: MonthEndOptions): Mon
         tone: 'in',
       },
       { label: '主播分成', value: `¥${split.idols.toLocaleString()}`, tone: 'sub' },
-      { label: '周边与外快（不被抽成）', value: `+¥${split.merch.toLocaleString()}`, tone: 'in' },
+      {
+        label: state.merchLevel > 0 ? `周边与外快（第 ${state.merchLevel} 批 · ×${split.merchMul.toFixed(2)}）` : '周边与外快（还没开周边线）',
+        value: `+¥${split.merch.toLocaleString()}`,
+        tone: 'in',
+      },
       ...(opts.scaleCost
         ? [
             { label: '底薪与运营', value: `-¥${(cost - overrun - opts.scaleCost).toLocaleString()}`, tone: 'out' as const },

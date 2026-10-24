@@ -38,6 +38,7 @@ function createState(seed: number): GameState {
     marketing: 1,
     buffs: { fanMul: 1, repBoost: 0, fatigueCut: 1 },
     nextFanMul: 1,
+    merchLevel: 0,
     achievements: [],
     flags: {},
     counters: {},
@@ -166,8 +167,11 @@ function choosePlan(s: GameState, rng: Rng): { def: ActionDef; targets: string[]
     push('training', byStat('vocal').slice(0, 3).map((i) => i.id), 'vocal')
   }
 
-  // 切片投放性价比极高
-  if (budget > 12_000 && plan.length >= 1) push('clip', [])
+  // 切片投放性价比极高（现在它是唯一能直接买流量的地方）
+  if (budget > 10_000 && plan.length >= 1) push('clip', [])
+
+  // 周边：回款慢但长期，钱够就开一批
+  if (s.merchLevel < 2 && budget > 60_000) push('merch', [])
 
   // 原创 / 3D 投资
   if (s.month >= 6 && budget > 90_000 && !s.flags['firstOriginal']) {

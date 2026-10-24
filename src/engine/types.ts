@@ -114,6 +114,8 @@ export interface GameState {
   buffs: Buffs
   /** 数据复盘攒下的「下月涨粉倍率」，月末滚存到 buffs.fanMul */
   nextFanMul: number
+  /** 已开的周边批数（0..config.revenue.merch.maxLevel） */
+  merchLevel: number
   /** 触发过的成就 */
   achievements: string[]
   /** 剧情旗标 */
