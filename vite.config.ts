@@ -16,6 +16,15 @@ export default defineConfig({
     strictPort: false,
   },
   build: {
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vue: ['vue'],
+          pinia: ['pinia'],
+          pixi: ['pixi.js'],
+        },
+      },
+    },
   }
 })
