@@ -15,4 +15,7 @@ export default defineConfig({
     port: 5288,
     strictPort: false,
   },
+  build: {
+    sourcemap: true
+  }
 })
